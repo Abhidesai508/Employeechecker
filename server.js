@@ -1,7 +1,7 @@
 const connection = require('./db/connection');
 const inquirer = require('inquirer');
 const cTable = require('console.table');
-const mysql = require('mysql2');
+const db = require('./db/connection');
 const express = require('express');
 
 
@@ -11,18 +11,6 @@ const app = express();
 // Express middleware
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-
-// connect to the local database
-const db = mysql.createConnection(
-    {
-        host: 'localhost',
-        // MySQL username,
-        user: 'root',
-        password: '',
-        database: 'employeechecker_db'
-    },
-    console.log(`Connected to the employeechecker database.`)
-);
 
 // prompt user for what they would like to do
 function init () {
@@ -123,6 +111,11 @@ function addDepartment() {
 
 // add a role
 function addRole() {
+    db.query(`SELECT * FROM department`, (err, rows) => {
+        if (err) throw err;
+        const departments = rows.map((department) => ({
+                name: department.name, value: department.id
+            }));
     inquirer.prompt([
         {
             type: 'input',
@@ -135,9 +128,10 @@ function addRole() {
             message: 'What is the salary for this role?'
         },
         {
-            type: 'input',
+            type: 'list',
             name: 'department_id',
-            message: 'What is the department ID for this role?'
+            message: 'What is the department ID for this role?',
+            choices: departments
         }
     ]).then((answer) => {
         const sql = `INSERT INTO role (title, salary, department_id) VALUES (?, ?, ?)`;
@@ -147,10 +141,22 @@ function addRole() {
             init();
         });
     });
+});
 }
 
 // add an employee
 function addEmployee() {
+    db.query(`SELECT employee.first_name, employee.last_name, role.title AS role_name, manager.first_name AS manager_name FROM employee LEFT JOIN role ON employee.role_id = role.id LEFT JOIN employee AS manager ON employee.manager_id = manager.id;
+    `, (err, rows) => {
+        if (err) throw err;
+        const managers = rows.map((manager) => ({
+                name: manager.first_name, value: manager.id
+            }));
+        db.query(`SELECT * FROM role`, (err, rows) => {
+            if (err) throw err;
+            const roles = rows.map((role) => ({
+                    name: role.title, value: role.id
+                }));
     inquirer.prompt([
         {
             type: 'input',
@@ -163,14 +169,16 @@ function addEmployee() {
             message: 'What is the last name of the employee you would like to add?'
         },
         {
-            type: 'input',
+            type: 'list',
             name: 'role_id',
-            message: 'What is the role ID for this employee?'
+            message: 'What is the role ID for this employee?',
+            choices: roles
         },
         {
-            type: 'input',
+            type: 'list',
             name: 'manager_id',
-            message: 'What is the manager ID for this employee?'
+            message: 'What is the manager ID for this employee?',
+            choices: managers
         }
     ]).then((answer) => {
         const sql = `INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)`;
@@ -179,21 +187,35 @@ function addEmployee() {
             console.log('Employee added!');
             init();
         });
+    });;
     });
+});
 }
 
 // update an employee role
 function updateEmployeeRole() {
+    db.query(`SELECT * FROM employee`, (err, rows) => {
+        if (err) throw err;
+        const employees = rows.map((employee) => ({
+                name: employee.first_name, value: employee.id
+            }));
+        db.query(`SELECT * FROM role`, (err, rows) => {
+            if (err) throw err;
+            const roles = rows.map((role) => ({
+                    name: role.title, value: role.id
+                }));
     inquirer.prompt([
         {
-            type: 'input',
+            type: 'list',
             name: 'employee_id',
-            message: 'What is the ID of the employee you would like to update?'
+            message: 'What is the ID of the employee you would like to update?',
+            choices: employees
         },
         {
-            type: 'input',
+            type: 'list',
             name: 'role_id',
-            message: 'What is the new role ID for this employee?'
+            message: 'What is the new role ID for this employee?',
+            choices: roles
         }
     ]).then((answer) => {
         const sql = `UPDATE employee SET role_id = ? WHERE id = ?`;
@@ -203,16 +225,8 @@ function updateEmployeeRole() {
             init();
         });
     });
+});
+});
 }
 
 init();
-
-// start server after DB connection
-db.connect(err => {
-    if (err) throw err;
-    console.log('Database connected.');
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
-}
-);
